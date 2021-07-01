@@ -15,14 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 """Target data structure."""
+import json
 import os
 import re
-import json
 import warnings
-import tvm._ffi
 
-from tvm.runtime import Object
+import tvm._ffi
 from tvm._ffi import register_func as _register_func
+from tvm.runtime import Object
+
 from . import _ffi_api
 
 
@@ -138,6 +139,10 @@ class Target(Object):
     @property
     def thread_warp_size(self):
         return int(self.attrs["thread_warp_size"])
+
+    @property
+    def max_function_args(self):
+        return int(self.attrs.get("max_function_args", -1))
 
     @property
     def device_name(self):
@@ -296,9 +301,12 @@ def micro(model="unknown", options=None):
     if model not in MICRO_SUPPORTED_MODELS:
         raise ValueError(f"Model {model} not supported by tvm.target.micro.")
     opts = _merge_opts(
-        MICRO_SUPPORTED_MODELS[model] + ["-runtime=c", "--system-lib", f"-model={model}"],
+        MICRO_SUPPORTED_MODELS[model] + ["-runtime=c", f"-model={model}"],
         options,
     )
+
+    if (not options) or (options and "--executor=aot" not in options):
+        opts = _merge_opts(opts, "--system-lib")
 
     # NOTE: in the future, the default micro target will be LLVM except when
     # external dependencies are present.
