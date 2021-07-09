@@ -19,6 +19,7 @@
 from tvm import te, tir, autotvm
 from functools import partial, reduce
 
+from ..transform import reshape
 from ..utils import traverse_inline, get_const_int
 from .utils import get_fp32_len
 
@@ -112,7 +113,10 @@ def spconv2d_3x3_nhwc(cfg, Data, Wdat, Wind, Wptr, layout="NHWC"):
         return te.sum(Im2Col[drow, Wind[elem]*bsrC + bcol] * Wdat[elem, brow, bcol], axis=elem_idx)
 
     k = te.reduce_axis((0, bsrC), name='k')
-    return te.compute((Y, X), lambda y, x: te.sum(CC[y, x // bsrR, x % bsrR, k], axis=k), name='C', tag='conv3x3_spNHWC')
+    C = te.compute((Y, X),
+        lambda y, x: te.sum(CC[y, x // bsrR, x % bsrR, k], axis=k),
+        name='C', tag='conv3x3_spNHWC')
+    return reshape(C, (N, H, W, CO))
 
 
 @autotvm.register_topi_schedule('conv3x3_spNHWC.x86')
