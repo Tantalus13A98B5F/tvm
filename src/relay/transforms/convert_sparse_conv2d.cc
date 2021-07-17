@@ -217,7 +217,7 @@ class Conv2dToSparseConv2dMutator2 : public ExprRewriter {
 
     // check weight dtype & shape
     auto &&pre_weight = pre_weight_node->data;
-    auto dtype = pre_weight.DataType(), itype = runtime::DataType::ShapeIndex();
+    auto dtype = pre_weight.DataType(), itype = runtime::DataType::Int(32);
     ICHECK(dtype.code() == DataType::kFloat && dtype.bits() == 32);  // float32 only
     auto pre_weight_shape = unpack_to_tuple<4>(pre_weight.Shape().data());
     int O, I, H, W;
@@ -240,7 +240,7 @@ class Conv2dToSparseConv2dMutator2 : public ExprRewriter {
     }
     // convert to BSR
     std::vector<float> wdata, block(blockH_ * blockW_);
-    std::vector<tvm_index_t> windices, windptr;
+    std::vector<int32_t> windices, windptr;
     for (auto bh: Range(CO / blockH_)) {
       windptr.push_back(windices.size());
       for (auto bw: Range(CI / blockW_)) {
@@ -267,8 +267,8 @@ class Conv2dToSparseConv2dMutator2 : public ExprRewriter {
     auto weight_indices = runtime::NDArray::Empty({nnz}, itype, dev_cpu0_);
     auto weight_indptr = runtime::NDArray::Empty({CO / blockH_ + 1}, itype, dev_cpu0_);
     weight_data.CopyFromBytes(wdata.data(), wdata.size() * sizeof(float));
-    weight_indices.CopyFromBytes(windices.data(), windices.size() * sizeof(tvm_index_t));
-    weight_indptr.CopyFromBytes(windptr.data(), windptr.size() * sizeof(tvm_index_t));
+    weight_indices.CopyFromBytes(windices.data(), windices.size() * sizeof(int32_t));
+    weight_indptr.CopyFromBytes(windptr.data(), windptr.size() * sizeof(int32_t));
 
     // construct return call
     auto args = runtime::Array<relay::Expr> {
