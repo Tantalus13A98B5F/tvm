@@ -91,11 +91,16 @@ def fast_softmax_strategy_cpu(attrs, inputs, out_type, target):
     return strategy
 
 
-@schedule_log_softmax.register("cpu")
-def schedule_log_softmax_cpu(attrs, outs, target):
-    """schedule log_softmax op for x86"""
-    with target:
-        return topi.x86.schedule_softmax(outs)
+@log_softmax_strategy.register("cpu")
+def log_softmax_strategy_cpu(attrs, inputs, out_type, target):
+    """log_softmax x86 strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.log_softmax),
+        wrap_topi_schedule(topi.x86.schedule_softmax),
+        name="log_softmax.x86",
+    )
+    return strategy
 
 
 @conv2d_strategy.register("cpu")
@@ -516,14 +521,16 @@ def batch_matmul_strategy_cpu(attrs, inputs, out_type, target):
     strategy = _op.OpStrategy()
     if is_dynamic(out_type) or is_auto_scheduler_enabled():
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.nn.batch_matmul, need_auto_scheduler_layout=True),
+            wrap_compute_batch_matmul(
+                topi.nn.batch_matmul, need_auto_scheduler_layout=True, need_out_dtype=True
+            ),
             wrap_topi_schedule(topi.generic.nn.schedule_batch_matmul),
             name="batch_matmul.generic",
             plevel=10,
         )
     else:
         strategy.add_implementation(
-            wrap_compute_batch_matmul(topi.x86.batch_matmul),
+            wrap_compute_batch_matmul(topi.x86.batch_matmul, need_out_dtype=True),
             wrap_topi_schedule(topi.x86.schedule_batch_matmul),
             name="batch_matmul.x86",
             plevel=10,

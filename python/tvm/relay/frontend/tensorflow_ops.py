@@ -1075,7 +1075,7 @@ def _resize(method):
 
         # Ignore the new attributes from TF2.0, for now.
         return AttrCvt(
-            op_name="resize", ignores=["Tdim", "half_pixel_centers"], extras={"method": method}
+            op_name="resize2d", ignores=["Tdim", "half_pixel_centers"], extras={"method": method}
         )(inputs, attr)
 
     return _impl
@@ -1483,7 +1483,13 @@ def _identityn():
 def _concatV2():
     def _impl(inputs, attr, params, mod):
         pop_node = inputs.pop(len(inputs) - 1)
-        axis = int(_get_num_param(params, pop_node))
+        try:
+            axis = int(_get_num_param(params, pop_node))
+        except (IndexError, KeyError, AttributeError):
+            try:
+                axis = int(_infer_value(pop_node, params, mod).numpy())
+            except Exception:
+                axis = int(pop_node)
         return AttrCvt(op_name="concatenate", ignores=["T", "N", "Tidx"], extras={"axis": axis})(
             [inputs], attr
         )
@@ -2244,7 +2250,7 @@ def _stridedSlice():
                             if begin[index] < 0
                             else begin[index]
                         )
-                        m_end[final_index] = begin[index] + 1
+                        m_end[final_index] = m_begin[final_index] + 1
                         m_stride[final_index] = 1
                         fshape_indices.append(-2)
                     else:
@@ -2943,8 +2949,8 @@ _convert_map = {
     "Relu": AttrCvt("relu"),
     "Relu6": _relu6(),
     "Reshape": _reshape(),
-    "ResizeBicubic": _resize("bilinear"),
-    "ResizeBilinear": _resize("bilinear"),
+    "ResizeBicubic": _resize("cubic"),
+    "ResizeBilinear": _resize("linear"),
     "ResizeNearestNeighbor": _resize("nearest_neighbor"),
     "ReverseV2": _reverse_v2(),
     "RightShift": AttrCvt("right_shift"),

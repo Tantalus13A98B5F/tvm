@@ -101,11 +101,23 @@ def fast_softmax_strategy_cuda(attrs, inputs, out_type, target):
     return strategy
 
 
-@schedule_log_softmax.register(["cuda", "gpu"])
-def schedule_log_softmax_cuda(attrs, outs, target):
-    """scheudle log_softmax for cuda"""
-    with target:
-        return topi.cuda.schedule_softmax(outs)
+@log_softmax_strategy.register(["cuda", "gpu"])
+def log_softmax_strategy_cuda(attrs, inputs, out_type, target):
+    """log_softmax cuda strategy"""
+    strategy = _op.OpStrategy()
+    strategy.add_implementation(
+        wrap_compute_softmax(topi.nn.log_softmax),
+        wrap_topi_schedule(topi.cuda.schedule_softmax),
+        name="log_softmax.cuda",
+    )
+    if target.kind.name == "cuda" and "cudnn" in target.libs:
+        strategy.add_implementation(
+            wrap_compute_softmax(topi.cuda.log_softmax_cudnn),
+            wrap_topi_schedule(topi.cuda.schedule_log_softmax_cudnn),
+            name="log_softmax.cudnn",
+            plevel=15,
+        )
+    return strategy
 
 
 @schedule_lrn.register(["cuda", "gpu"])
@@ -832,13 +844,16 @@ def batch_matmul_strategy_cuda(attrs, inputs, out_type, target):
         x, y = inputs
         _, M, K = get_const_tuple(x.shape)
         _, N, K = get_const_tuple(y.shape)
-        if x.dtype in ["float16", "int8", "uint8"] and (
-            (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
-            or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
-            or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
-        ):
+        if (
+            x.dtype in ["float16", "int8", "uint8"]
+            and (
+                (M % 8 == 0 and K % 16 == 0 and N % 32 == 0)
+                or (M % 16 == 0 and K % 16 == 0 and N % 16 == 0)
+                or (M % 32 == 0 and K % 16 == 0 and N % 8 == 0)
+            )
+        ) or (x.dtype in ["int4", "uint4"] and K % 32 == 0 and M % 8 == 0 and N % 8 == 0):
             strategy.add_implementation(
-                wrap_compute_batch_matmul(topi.cuda.batch_matmul_tensorcore),
+                wrap_compute_batch_matmul(topi.cuda.batch_matmul_tensorcore, need_out_dtype=True),
                 wrap_topi_schedule(topi.cuda.schedule_batch_matmul_tensorcore),
                 name="batch_matmul_tensorcore.cuda",
                 plevel=20,
