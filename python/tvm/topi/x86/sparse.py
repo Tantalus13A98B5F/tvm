@@ -162,7 +162,7 @@ def schedule_spconv2d_3x3_nhwc(cfg, outs):
 
 
 @autotvm.register_topi_compute('conv3x3_spNCHW.x86')
-def spconv2d_3x3_nchw(cfg, Data, Wdat, Wind, Wptr):
+def spconv2d_3x3_nchw(cfg, Data, Wdat, Wind, Wptr, layout="NCHW"):
     N, CI, H, W = [i.value for i in Data.shape]
     NNZ, VL, bsrC = [i.value for i in Wdat.shape]
     CO = (Wptr.shape[0].value - 1) * VL
