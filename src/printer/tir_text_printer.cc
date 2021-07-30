@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <string>
 
+#include "../tir/transforms/ir_utils.h"
 #include "doc.h"
 #include "meta_data.h"
 #include "text_printer.h"
@@ -204,8 +205,8 @@ Doc TIRTextPrinter::BufferNode2Doc(const BufferNode* buf, Doc doc) {
   if (!is_zero(buf->elem_offset)) {
     doc << ", elem_offset=" << Print(buf->elem_offset);
   }
-  if (buf->scope != "global") {
-    doc << ", scope=" << Doc::StrLiteral(buf->scope);
+  if (GetRef<Buffer>(buf).scope() != "global") {
+    doc << ", scope=" << Doc::StrLiteral(GetRef<Buffer>(buf).scope());
   }
   if (buf->data_alignment != 128) {
     doc << ", align=" << buf->data_alignment;
@@ -447,8 +448,9 @@ Doc TIRTextPrinter::VisitStmt_(const BufferRealizeNode* op) {
 
 Doc TIRTextPrinter::VisitStmt_(const AllocateNode* op) {
   Doc doc;
+  auto scope = GetPtrStorageScope(op->buffer_var);
   doc << "allocate(" << Print(op->buffer_var) << ", " << PrintDType(op->dtype) << ", "
-      << Print(op->extents) << ")";
+      << Print(op->extents) << "), storage_scope = " << scope;
   if (!is_one(op->condition)) {
     doc << " if " << Print(op->condition);
   }
